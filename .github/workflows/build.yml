@@ -17,7 +17,7 @@ jobs:
         feature: [default, mupdf]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,22 +32,26 @@ jobs:
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $GITHUB_ENV
           echo "C:\Program Files\LLVM\bin" >> $GITHUB_PATH
 
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
       - name: Build
         run: |
+          $env:RUSTC_WRAPPER = "sccache"
+          $env:SCCACHE_GHA_ENABLED = "true"
           if ("${{ matrix.feature }}" -eq "mupdf") {
-            cargo build --release --features mupdf
+            cargo build --release --features mupdf -j 1
           } else {
-            cargo build --release
+            cargo build --release -j 1
           }
+          sccache --show-stats
 
       - name: Prepare Artifact
         run: |
           mkdir dist
-          # 包含构建出的 pdfium.dll (由 build.rs 生成)
-          # 注意：考虑到 CI 目录结构的细微差异，我们使用递归复制确保命中
           Get-ChildItem -Path target/release -Filter pdfium.dll -Recurse | Copy-Item -Destination dist/
           Get-ChildItem -Path target/release -Filter tree-pdf-viewer.exe -Recurse | Copy-Item -Destination dist/
         shell: pwsh
