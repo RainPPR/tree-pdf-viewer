@@ -13,7 +13,11 @@ pub struct FileNode {
 /// 扫描目录并构建树
 pub fn build_file_tree(root_path: &Path, show_all_folders: bool) -> Vec<FileNode> {
     let mut root_node = FileNode {
-        name: root_path.file_name().unwrap_or_default().to_string_lossy().into(),
+        name: root_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into(),
         path: root_path.to_path_buf(),
         is_dir: true,
         children: vec![],
@@ -29,9 +33,16 @@ pub fn build_file_tree(root_path: &Path, show_all_folders: bool) -> Vec<FileNode
                 if show_all_folders || child.contains_pdf {
                     root_node.children.push(child);
                 }
-            } else if path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("pdf")) {
+            } else if path
+                .extension()
+                .map_or(false, |ext| ext.eq_ignore_ascii_case("pdf"))
+            {
                 root_node.children.push(FileNode {
-                    name: path.file_name().unwrap_or_default().to_string_lossy().into(),
+                    name: path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into(),
                     path: path.clone(),
                     is_dir: false,
                     children: vec![],
@@ -42,16 +53,22 @@ pub fn build_file_tree(root_path: &Path, show_all_folders: bool) -> Vec<FileNode
             }
         }
     }
-    
+
     // 排序：目录在前，文件在后
-    root_node.children.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
-    
+    root_node
+        .children
+        .sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+
     vec![root_node]
 }
 
 fn scan_dir(path: &Path, show_all_folders: bool) -> FileNode {
     let mut node = FileNode {
-        name: path.file_name().unwrap_or_default().to_string_lossy().into(),
+        name: path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into(),
         path: path.to_path_buf(),
         is_dir: true,
         children: vec![],
@@ -65,10 +82,15 @@ fn scan_dir(path: &Path, show_all_folders: bool) -> FileNode {
             if p.is_dir() {
                 let child = scan_dir(&p, show_all_folders);
                 if show_all_folders || child.contains_pdf {
-                    if child.contains_pdf { node.contains_pdf = true; }
+                    if child.contains_pdf {
+                        node.contains_pdf = true;
+                    }
                     node.children.push(child);
                 }
-            } else if p.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("pdf")) {
+            } else if p
+                .extension()
+                .map_or(false, |ext| ext.eq_ignore_ascii_case("pdf"))
+            {
                 node.children.push(FileNode {
                     name: p.file_name().unwrap_or_default().to_string_lossy().into(),
                     path: p.clone(),
@@ -81,7 +103,8 @@ fn scan_dir(path: &Path, show_all_folders: bool) -> FileNode {
             }
         }
     }
-    
-    node.children.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+
+    node.children
+        .sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
     node
 }

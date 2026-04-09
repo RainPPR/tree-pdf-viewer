@@ -1,17 +1,17 @@
+use crate::cache::{SharedTextureCache, TextureCache};
 use crate::engine::{EngineType, PdfEngine};
 use crate::fs::{build_file_tree, FileNode};
-use crate::cache::{TextureCache, SharedTextureCache};
-use eframe::egui;
 use anyhow::Result;
+use eframe::egui;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 
 const APP_KEY: &str = "tree_pdf_viewer_settings";
 
+mod cache;
 mod engine;
 mod fs;
-mod cache;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Settings {
@@ -45,7 +45,7 @@ struct TreePdfApp {
     current_path: Option<PathBuf>,
     #[allow(dead_code)]
     search_term: String,
-    
+
     // UI 状态
     sidebar_tab: SidebarTab,
     selected_node: Option<PathBuf>,
@@ -56,8 +56,9 @@ struct TreePdfApp {
     texture_cache: SharedTextureCache,
     render_rx: Receiver<RenderResult>,
     render_tx: Sender<RenderResult>,
-    pending_requests: std::collections::HashSet<String>, 
+    pending_requests: std::collections::HashSet<String>,
     jump_to_page: Option<usize>,
+    show_settings: bool,
 }
 
 struct RenderResult {
@@ -68,11 +69,32 @@ struct RenderResult {
 
 impl TreePdfApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let settings: Settings = cc.storage
+        // 配置中文字体
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "microsoft_yahei".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                "C:/Windows/Fonts/msyh.ttc"
+            ))),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Proportional)
+            .or_default()
+            .insert(0, "microsoft_yahei".to_owned());
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .insert(0, "microsoft_yahei".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
+
+        let settings: Settings = cc
+            .storage
             .and_then(|s| s.get_string(APP_KEY))
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default();
-            
+
         let file_tree = if let Some(ref dir) = settings.last_opened_dir {
             build_file_tree(dir, settings.show_all_folders)
         } else {
@@ -96,6 +118,7 @@ impl TreePdfApp {
             render_tx: tx,
             pending_requests: std::collections::HashSet::new(),
             jump_to_page: None,
+            show_settings: false,
         }
     }
 
@@ -103,10 +126,15 @@ impl TreePdfApp {
         let engine_type = self.settings.engine;
         let engine_result: Result<Arc<dyn PdfEngine>> = match engine_type {
             #[cfg(feature = "mupdf")]
-            EngineType::MuPdf => crate::engine::mupdf::MuPdfEngine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
-            EngineType::Pdfium => crate::engine::pdfium::PdfiumEngine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
-            EngineType::WindowsDataPdf => crate::engine::win_pdf::WinPdfEngine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
-            EngineType::WebView2 => crate::engine::webview::WebView2Engine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
+            EngineType::MuPdf => {
+                crate::engine::mupdf::MuPdfEngine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>)
+            }
+            EngineType::Pdfium => crate::engine::pdfium::PdfiumEngine::new()
+                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
+            EngineType::WindowsDataPdf => crate::engine::win_pdf::WinPdfEngine::new()
+                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
+            EngineType::WebView2 => crate::engine::webview::WebView2Engine::new()
+                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
         };
 
         if let Ok(mut engine) = engine_result {
@@ -132,16 +160,16 @@ impl TreePdfApp {
     fn request_render(&mut self, page_index: usize) {
         let zoom = self.zoom_level;
         let request_id = format!("{}_{}", page_index, zoom);
-        
+
         if self.pending_requests.contains(&request_id) {
             return;
         }
-        
+
         if let Some(ref doc) = self.current_doc {
             self.pending_requests.insert(request_id.clone());
             let tx = self.render_tx.clone();
             let doc_clone = Arc::clone(doc);
-            
+
             // 使用标准线程执行渲染，避免阻塞 UI
             std::thread::spawn(move || {
                 if let Ok(image) = doc_clone.render_page(page_index, zoom) {
@@ -170,13 +198,17 @@ impl eframe::App for TreePdfApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx();
-        
+
         // 处理渲染结果
         while let Ok(result) = self.render_rx.try_recv() {
             if result.zoom == self.zoom_level {
                 let texture_name = format!("page_{}_{}", result.page_index, result.zoom);
-                let texture = ctx.load_texture(&texture_name, result.image, egui::TextureOptions::LINEAR);
-                self.texture_cache.lock().unwrap().insert(texture_name, texture);
+                let texture =
+                    ctx.load_texture(&texture_name, result.image, egui::TextureOptions::LINEAR);
+                self.texture_cache
+                    .lock()
+                    .unwrap()
+                    .insert(texture_name, texture);
             }
         }
 
@@ -188,9 +220,9 @@ impl eframe::App for TreePdfApp {
                         self.open_folder(path);
                     }
                 }
-                
+
                 ui.separator();
-                
+
                 ui.label("引擎:");
                 let old_engine = self.settings.engine;
                 egui::ComboBox::from_label("")
@@ -198,11 +230,23 @@ impl eframe::App for TreePdfApp {
                     .show_ui(ui, |ui| {
                         #[cfg(feature = "mupdf")]
                         ui.selectable_value(&mut self.settings.engine, EngineType::MuPdf, "MuPDF");
-                        ui.selectable_value(&mut self.settings.engine, EngineType::Pdfium, "PDFium");
-                        ui.selectable_value(&mut self.settings.engine, EngineType::WindowsDataPdf, "Windows.Data.Pdf");
-                        ui.selectable_value(&mut self.settings.engine, EngineType::WebView2, "WebView2");
+                        ui.selectable_value(
+                            &mut self.settings.engine,
+                            EngineType::Pdfium,
+                            "PDFium",
+                        );
+                        ui.selectable_value(
+                            &mut self.settings.engine,
+                            EngineType::WindowsDataPdf,
+                            "Windows.Data.Pdf",
+                        );
+                        ui.selectable_value(
+                            &mut self.settings.engine,
+                            EngineType::WebView2,
+                            "WebView2",
+                        );
                     });
-                
+
                 if self.settings.engine != old_engine {
                     if let Some(path) = self.current_path.clone() {
                         self.open_file(path);
@@ -210,16 +254,19 @@ impl eframe::App for TreePdfApp {
                 }
 
                 ui.separator();
-                
+
                 ui.label("缩放:");
-                if ui.add(egui::Slider::new(&mut self.zoom_level, 0.5..=5.0).logarithmic(true)).changed() {
+                if ui
+                    .add(egui::Slider::new(&mut self.zoom_level, 0.5..=5.0).logarithmic(true))
+                    .changed()
+                {
                     // 缩放改变时清除缓存并重新请求
                     self.texture_cache.lock().unwrap().clear();
                 }
-                
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("⚙ 设置").clicked() {
-                        // TODO: 打开设置对话框
+                        self.show_settings = true;
                     }
                 });
             });
@@ -229,11 +276,14 @@ impl eframe::App for TreePdfApp {
         egui::Panel::bottom("status_bar").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 if let Some(ref path) = self.current_path {
-                    ui.label(format!("文件: {}", path.file_name().unwrap().to_string_lossy()));
+                    ui.label(format!(
+                        "文件: {}",
+                        path.file_name().unwrap().to_string_lossy()
+                    ));
                 } else {
                     ui.label("未打开文件");
                 }
-                
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!("内存限制: 1.0 GB")); // 示意
                 });
@@ -250,14 +300,14 @@ impl eframe::App for TreePdfApp {
                     ui.selectable_value(&mut self.sidebar_tab, SidebarTab::Bookmarks, "📑 书签");
                 });
                 ui.separator();
-                
+
                 match self.sidebar_tab {
                     SidebarTab::Files => {
                         egui::ScrollArea::vertical().show(ui, |ui| {
                             let mut nodes_to_render = self.file_tree.clone();
                             for node in &mut nodes_to_render {
                                 if let Some(path) = self.render_tree_node(ui, node) {
-                                     self.open_file(path);
+                                    self.open_file(path);
                                 }
                             }
                         });
@@ -284,8 +334,8 @@ impl eframe::App for TreePdfApp {
             if let Some(ref doc) = self.current_doc {
                 let total_pages = doc.page_count();
                 let zoom = self.zoom_level;
-                let row_height = 810.0 * zoom; 
-                
+                let row_height = 810.0 * zoom;
+
                 let scroll_area = egui::ScrollArea::vertical()
                     .id_salt("pdf_scroll")
                     .auto_shrink([false, false]);
@@ -293,30 +343,31 @@ impl eframe::App for TreePdfApp {
                 let texture_cache_clone = Arc::clone(&self.texture_cache);
                 let requested_pages = Arc::new(Mutex::new(Vec::new()));
                 let requested_pages_inner = Arc::clone(&requested_pages);
-                
+
                 scroll_area.show_rows(ui, row_height, total_pages, |ui, range| {
                     for i in range {
                         let texture_name = format!("page_{}_{}", i, zoom);
                         let texture = texture_cache_clone.lock().unwrap().get(&texture_name);
-                        
+
                         if let Some(tex) = texture {
                             ui.image((tex.id(), tex.size_vec2()));
                             ui.add_space(10.0);
                         } else {
                             let (rect, _response) = ui.allocate_exact_size(
-                                egui::vec2(600.0 * zoom, 800.0 * zoom), 
-                                egui::Sense::hover()
+                                egui::vec2(600.0 * zoom, 800.0 * zoom),
+                                egui::Sense::hover(),
                             );
-                            ui.painter().rect_filled(rect, 0.0, egui::Color32::from_gray(30));
+                            ui.painter()
+                                .rect_filled(rect, 0.0, egui::Color32::from_gray(30));
                             ui.painter().text(
-                                rect.center(), 
-                                egui::Align2::CENTER_CENTER, 
-                                "加载中...", 
-                                egui::FontId::proportional(20.0 * zoom), 
-                                egui::Color32::GRAY
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "加载中...",
+                                egui::FontId::proportional(20.0 * zoom),
+                                egui::Color32::GRAY,
                             );
                             ui.add_space(10.0);
-                            
+
                             requested_pages_inner.lock().unwrap().push(i);
                         }
                     }
@@ -337,6 +388,58 @@ impl eframe::App for TreePdfApp {
                 });
             }
         });
+
+        // 设置对话框
+        if self.show_settings {
+            egui::Window::new("⚙ 设置")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ui.ctx(), |ui| {
+                    ui.heading("设置");
+                    ui.separator();
+
+                    ui.label("PDF 渲染引擎:");
+                    ui.horizontal(|ui| {
+                        egui::ComboBox::from_id_salt("engine_selector")
+                            .selected_text(format!("{:?}", self.settings.engine))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.settings.engine,
+                                    EngineType::Pdfium,
+                                    "PDFium",
+                                );
+                                ui.selectable_value(
+                                    &mut self.settings.engine,
+                                    EngineType::WindowsDataPdf,
+                                    "Windows Data PDF",
+                                );
+                                ui.selectable_value(
+                                    &mut self.settings.engine,
+                                    EngineType::WebView2,
+                                    "WebView2",
+                                );
+                            });
+                    });
+
+                    ui.separator();
+                    ui.label("预取页数:");
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.prefetch_pages, 0..=10)
+                            .text("prefetch"),
+                    );
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("确定").clicked() {
+                            self.show_settings = false;
+                        }
+                        if ui.button("取消").clicked() {
+                            self.show_settings = false;
+                        }
+                    });
+                });
+        }
     }
 }
 
@@ -347,10 +450,12 @@ impl TreePdfApp {
             egui::collapsing_header::CollapsingState::load_with_default_open(
                 ui.ctx(),
                 egui::Id::new(&node.path),
-                node.is_expanded
-            ).show_header(ui, |ui| {
+                node.is_expanded,
+            )
+            .show_header(ui, |ui| {
                 ui.label(format!("📁 {}", node.name));
-            }).body(|ui| {
+            })
+            .body(|ui| {
                 for child in &mut node.children {
                     if let Some(p) = self.render_tree_node(ui, child) {
                         clicked_path = Some(p);
@@ -359,7 +464,10 @@ impl TreePdfApp {
             });
         } else {
             let is_selected = self.selected_node.as_ref() == Some(&node.path);
-            if ui.selectable_label(is_selected, format!("📄 {}", node.name)).clicked() {
+            if ui
+                .selectable_label(is_selected, format!("📄 {}", node.name))
+                .clicked()
+            {
                 self.selected_node = Some(node.path.clone());
                 clicked_path = Some(node.path.clone());
             }
@@ -370,23 +478,28 @@ impl TreePdfApp {
     fn render_toc_item(&mut self, ui: &mut egui::Ui, item: &crate::engine::TocItem) {
         let label = format!("{} (P{})", item.title, item.page_index + 1);
         let collapser_id = ui.make_persistent_id(&item.title);
-        
+
         if !item.children.is_empty() {
             egui::collapsing_header::CollapsingState::load_with_default_open(
                 ui.ctx(),
                 collapser_id,
-                false
-            ).show_header(ui, |ui| {
+                false,
+            )
+            .show_header(ui, |ui| {
                 if ui.button(&label).clicked() {
                     self.jump_to_page = Some(item.page_index);
                 }
-            }).body(|ui| {
+            })
+            .body(|ui| {
                 for child in &item.children {
                     self.render_toc_item(ui, child);
                 }
             });
         } else {
-            if ui.selectable_label(self.current_page == item.page_index, &label).clicked() {
+            if ui
+                .selectable_label(self.current_page == item.page_index, &label)
+                .clicked()
+            {
                 self.jump_to_page = Some(item.page_index);
             }
         }
@@ -395,14 +508,14 @@ impl TreePdfApp {
 
 fn main() -> eframe::Result<()> {
     env_logger::init();
-    
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
             .with_title("Tree PDF Viewer"),
         ..Default::default()
     };
-    
+
     eframe::run_native(
         "tree-pdf-viewer",
         native_options,

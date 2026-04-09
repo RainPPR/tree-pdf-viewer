@@ -27,7 +27,9 @@ impl PdfEngine for WebView2Engine {
         // 对于 WebView2，我们通常不将其渲染结果导回到 CPU 位图
         // 而是直接在 UI 上覆盖一个浏览器窗口。
         // 为了兼容 Trait 接口，返回一个特定的提示占位图。
-        Err(anyhow!("WebView2 引擎目前通过原生窗口覆盖层直接显示，不支持 render_page 接口。"))
+        Err(anyhow!(
+            "WebView2 引擎目前通过原生窗口覆盖层直接显示，不支持 render_page 接口。"
+        ))
     }
 
     fn page_count(&self) -> usize {

@@ -1,8 +1,8 @@
-pub mod pdfium;
 #[cfg(feature = "mupdf")]
 pub mod mupdf;
-pub mod win_pdf;
+pub mod pdfium;
 pub mod webview;
+pub mod win_pdf;
 
 use anyhow::Result;
 use egui::ColorImage;
@@ -12,14 +12,14 @@ use std::path::Path;
 pub trait PdfEngine: Send + Sync {
     /// 打开文档
     fn open(&mut self, path: &Path) -> Result<()>;
-    
+
     /// 获取单页渲染出的位图 (RGBA)
     /// zoom: 缩放倍率，默认为 1.0 (约 72-96 DPI，取决于引擎实现)
     fn render_page(&self, page_index: usize, zoom: f32) -> Result<ColorImage>;
-    
+
     /// 获取总页数
     fn page_count(&self) -> usize;
-    
+
     /// 获取文档目录 (书签树)
     fn get_toc(&self) -> Vec<TocItem>;
 
