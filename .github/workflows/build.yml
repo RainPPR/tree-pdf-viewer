@@ -32,20 +32,15 @@ jobs:
           echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $GITHUB_ENV
           echo "C:\Program Files\LLVM\bin" >> $GITHUB_PATH
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
       - name: Build
         run: |
-          $env:RUSTC_WRAPPER = "sccache"
-          $env:SCCACHE_GHA_ENABLED = "true"
           if ("${{ matrix.feature }}" -eq "mupdf") {
-            cargo build --release --features mupdf -j 1
+            cargo build --release --features mupdf
           } else {
-            cargo build --release -j 1
+            cargo build --release
           }
           sccache --show-stats
 
