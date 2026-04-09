@@ -42,7 +42,6 @@ jobs:
           } else {
             cargo build --release
           }
-          sccache --show-stats
 
       - name: Prepare Artifact
         run: |
