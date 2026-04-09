@@ -1,0 +1,12 @@
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# [build]
+# # 对于 Windows 11 64-bit，默认应该是这个，显式指定以确保一致性
+# target = "x86_64-pc-windows-msvc"
+
+[env]
+# 如果需要指定特定的环境变量，可以在这里添加

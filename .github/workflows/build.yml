@@ -1,0 +1,59 @@
+name: Multi-Feature Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.feature }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [default, mupdf]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup MSVC (Required for C++ deps like MuPDF)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install LLVM (MuPDF only)
+        if: matrix.feature == 'mupdf'
+        run: |
+          choco install llvm
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $GITHUB_ENV
+          echo "C:\Program Files\LLVM\bin" >> $GITHUB_PATH
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: |
+          if ("${{ matrix.feature }}" -eq "mupdf") {
+            cargo build --release --features mupdf
+          } else {
+            cargo build --release
+          }
+
+      - name: Prepare Artifact
+        run: |
+          mkdir dist
+          # 包含构建出的 pdfium.dll (由 build.rs 生成)
+          # 注意：考虑到 CI 目录结构的细微差异，我们使用递归复制确保命中
+          Get-ChildItem -Path target/release -Filter pdfium.dll -Recurse | Copy-Item -Destination dist/
+          Get-ChildItem -Path target/release -Filter tree-pdf-viewer.exe -Recurse | Copy-Item -Destination dist/
+        shell: pwsh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tree-pdf-viewer-${{ matrix.feature }}
+          path: dist/

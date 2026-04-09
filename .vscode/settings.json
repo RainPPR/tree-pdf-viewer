@@ -1,0 +1,13 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "VS 2019 Developer Command Prompt": {
+            "path": "cmd.exe",
+            "args": [
+                "/k",
+                "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\Common7\\Tools\\VsDevCmd.bat"
+            ],
+            "icon": "terminal-view-icon"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "VS 2019 Developer Command Prompt"
+}
