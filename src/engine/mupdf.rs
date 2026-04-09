@@ -6,26 +6,19 @@ use egui::ColorImage;
 use std::path::Path;
 
 pub struct MuPdfEngine {
-    context: mupdf::Context,
     document: Option<mupdf::Document>,
 }
 
 impl MuPdfEngine {
     pub fn new() -> Result<Self> {
-        let context =
-            mupdf::Context::new().map_err(|e| anyhow!("无法初始化 MuPDF Context: {:?}", e))?;
-        Ok(Self {
-            context,
-            document: None,
-        })
+        Ok(Self { document: None })
     }
 }
 
 impl PdfEngine for MuPdfEngine {
     fn open(&mut self, path: &Path) -> Result<()> {
-        let path_str = path.to_string_lossy();
-        let doc = mupdf::Document::open(&self.context, &path_str)
-            .map_err(|e| anyhow!("MuPDF 无法打开文件: {:?}", e))?;
+        let doc =
+            mupdf::Document::open(path).map_err(|e| anyhow!("MuPDF 无法打开文件: {:?}", e))?;
         self.document = Some(doc);
         Ok(())
     }
@@ -39,23 +32,21 @@ impl PdfEngine for MuPdfEngine {
             .load_page(page_index as i32)
             .map_err(|e| anyhow!("MuPDF 无法加载页面: {:?}", e))?;
 
-        // 计算缩放矩阵
         let matrix = mupdf::Matrix::new_scale(zoom * 1.33, zoom * 1.33);
         let pixmap = page
-            .to_pixmap(&matrix, &mupdf::Colorspace::device_rgb(), 0.0)
+            .to_pixmap(&matrix, &mupdf::Colorspace::device_rgb(), false, false)
             .map_err(|e| anyhow!("MuPDF 渲染失败: {:?}", e))?;
 
         let width = pixmap.width() as usize;
         let height = pixmap.height() as usize;
-        let samples = pixmap.samples(); // RGB 数据
+        let samples = pixmap.samples();
 
-        // 转换为 egui 的 ColorImage (RGBA)
         let mut rgba = Vec::with_capacity(width * height * 4);
         for i in 0..(width * height) {
-            rgba.push(samples[i * 3]); // R
-            rgba.push(samples[i * 3 + 1]); // G
-            rgba.push(samples[i * 3 + 2]); // B
-            rgba.push(255); // A
+            rgba.push(samples[i * 3]);
+            rgba.push(samples[i * 3 + 1]);
+            rgba.push(samples[i * 3 + 2]);
+            rgba.push(255);
         }
 
         Ok(ColorImage::from_rgba_unmultiplied([width, height], &rgba))
@@ -64,7 +55,7 @@ impl PdfEngine for MuPdfEngine {
     fn page_count(&self) -> usize {
         self.document
             .as_ref()
-            .map(|d| d.count_pages().unwrap_or(0) as usize)
+            .map(|d| d.page_count().unwrap_or(0) as usize)
             .unwrap_or(0)
     }
 
@@ -74,33 +65,38 @@ impl PdfEngine for MuPdfEngine {
         } else {
             return vec![];
         };
-        let outline = match doc.load_outline() {
-            Ok(o) => o,
-            Err(_) => return vec![],
-        };
-        self.parse_outline(Some(outline), 0)
+
+        match doc.outlines() {
+            Ok(outlines) => self.parse_outline(outlines, 0),
+            Err(_) => vec![],
+        }
     }
 }
 
 impl MuPdfEngine {
-    fn parse_outline(&self, outline: Option<mupdf::Outline>, level: usize) -> Vec<TocItem> {
+    fn parse_outline(&self, outlines: Vec<mupdf::Outline>, level: usize) -> Vec<TocItem> {
         let mut items = vec![];
-        let mut current = outline;
 
-        while let Some(out) = current {
-            let mut children = vec![];
-            if let Some(first_child) = out.first_child() {
-                children = self.parse_outline(Some(first_child), level + 1);
-            }
+        for out in outlines {
+            let title = out.title.clone().unwrap_or_else(|| "Untitled".to_string());
+            let page_index = out
+                .page
+                .clone()
+                .and_then(|loc| loc.page_number)
+                .unwrap_or(-1) as usize;
+
+            let children = if let Ok(sub_outlines) = out.outlines() {
+                self.parse_outline(sub_outlines, level + 1)
+            } else {
+                vec![]
+            };
 
             items.push(TocItem {
-                title: out.title().unwrap_or_else(|| "Untitled".to_string()),
-                page_index: out.page() as usize,
+                title,
+                page_index,
                 children,
                 level,
             });
-
-            current = out.next();
         }
 
         items

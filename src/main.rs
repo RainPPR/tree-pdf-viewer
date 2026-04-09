@@ -18,6 +18,7 @@ struct Settings {
     engine: EngineType,
     show_all_folders: bool,
     prefetch_pages: usize,
+    memory_limit_mb: usize,
     last_opened_dir: Option<PathBuf>,
 }
 
@@ -27,6 +28,7 @@ impl Default for Settings {
             engine: EngineType::Pdfium,
             show_all_folders: false,
             prefetch_pages: 2,
+            memory_limit_mb: 1024,
             last_opened_dir: None,
         }
     }
@@ -285,7 +287,10 @@ impl eframe::App for TreePdfApp {
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(format!("内存限制: 1.0 GB")); // 示意
+                    ui.label(format!(
+                        "内存限制: {:.1} GB",
+                        self.settings.memory_limit_mb as f32 / 1024.0
+                    ));
                 });
             });
         });
@@ -427,6 +432,13 @@ impl eframe::App for TreePdfApp {
                     ui.add(
                         egui::Slider::new(&mut self.settings.prefetch_pages, 0..=10)
                             .text("prefetch"),
+                    );
+
+                    ui.separator();
+                    ui.label("内存限制 (MB):");
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.memory_limit_mb, 256..=4096)
+                            .text("memory"),
                     );
 
                     ui.separator();

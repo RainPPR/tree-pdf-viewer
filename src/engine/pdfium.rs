@@ -12,8 +12,6 @@ pub struct PdfiumEngine {
 
 impl PdfiumEngine {
     pub fn new() -> Result<Self> {
-        // 在 Windows 上，我们需要加载 pdfium.dll
-        // 尝试从当前目录或系统路径加载
         let pdfium = Pdfium::new(
             Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name())
                 .or_else(|_| Pdfium::bind_to_library("pdfium.dll"))
@@ -30,9 +28,6 @@ impl PdfiumEngine {
 impl PdfEngine for PdfiumEngine {
     fn open(&mut self, path: &Path) -> Result<()> {
         let doc = self.pdfium.load_pdf_from_file(path, None)?;
-        // 注意：pdfium-render 的 PdfDocument 有生命周期限制
-        // 这里我们需要解决生命周期问题，或者使用 Arc 包装
-        // 为了演示，我们暂时使用 'static 转换 (实际生产中需更严谨处理)
         self.document =
             Some(unsafe { std::mem::transmute::<PdfDocument<'_>, PdfDocument<'static>>(doc) });
         Ok(())
@@ -43,19 +38,20 @@ impl PdfEngine for PdfiumEngine {
             .document
             .as_ref()
             .ok_or_else(|| anyhow!("文档未打开"))?;
-        // PdfPageIndex 在 0.9.0 中通常由 u16 转换而来
-        let page = doc.pages().get((page_index as u16).into())?;
 
-        // 计算渲染尺寸 (PDF 默认 72 DPI)
+        let page = doc.pages().get(page_index as i32)?;
+
+        let width_pt = page.width().value;
+        let height_pt = page.height().value;
+
         let render_config = PdfRenderConfig::new()
-            .set_target_width((page.width().value * 1.33 * zoom) as i32)
-            .set_target_height((page.height().value * 1.33 * zoom) as i32);
+            .set_target_width((width_pt * 1.33 * zoom) as i32)
+            .set_target_height((height_pt * 1.33 * zoom) as i32);
 
         let bitmap = page.render_with_config(&render_config)?;
         let width = bitmap.width() as usize;
         let height = bitmap.height() as usize;
 
-        // 转换为 egui 的 ColorImage (RGBA)
         let pixels = bitmap.as_rgba_bytes();
         Ok(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
     }
@@ -68,10 +64,9 @@ impl PdfEngine for PdfiumEngine {
     }
 
     fn get_toc(&self) -> Vec<TocItem> {
-        let doc = if let Some(ref d) = self.document {
-            d
-        } else {
-            return vec![];
+        let doc = match &self.document {
+            Some(d) => d,
+            None => return vec![],
         };
         self.parse_bookmarks(doc.bookmarks().iter(), 0)
     }
@@ -90,7 +85,8 @@ impl PdfiumEngine {
 
             let page_index = bm
                 .destination()
-                .and_then(|d| d.page_index().ok().map(|idx| idx as usize))
+                .and_then(|d| d.page_index().ok())
+                .map(|idx| idx as usize)
                 .unwrap_or(0);
 
             items.push(TocItem {
@@ -105,6 +101,5 @@ impl PdfiumEngine {
     }
 }
 
-// 模拟扩展实现，防止编译报错
 unsafe impl Send for PdfiumEngine {}
 unsafe impl Sync for PdfiumEngine {}
