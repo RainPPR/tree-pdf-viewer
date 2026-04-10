@@ -126,35 +126,36 @@ impl TreePdfApp {
 
     fn open_file(&mut self, path: PathBuf) {
         let engine_type = self.settings.engine;
-        let engine_result: Result<Arc<dyn PdfEngine>> = match engine_type {
+
+        let engine_result: Result<Box<dyn PdfEngine>, anyhow::Error> = match engine_type {
             #[cfg(feature = "mupdf")]
-            EngineType::MuPdf => {
-                crate::engine::mupdf::MuPdfEngine::new().map(|e| Arc::new(e) as Arc<dyn PdfEngine>)
-            }
-            EngineType::Pdfium => crate::engine::pdfium::PdfiumEngine::new()
-                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
-            EngineType::WindowsDataPdf => crate::engine::win_pdf::WinPdfEngine::new()
-                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
-            EngineType::WebView2 => crate::engine::webview::WebView2Engine::new()
-                .map(|e| Arc::new(e) as Arc<dyn PdfEngine>),
+            EngineType::MuPdf => match crate::engine::mupdf::MuPdfEngine::new() {
+                Ok(engine) => Ok(Box::new(engine)),
+                Err(e) => Err(e),
+            },
+            EngineType::Pdfium => match crate::engine::pdfium::PdfiumEngine::new() {
+                Ok(engine) => Ok(Box::new(engine)),
+                Err(e) => Err(e),
+            },
+            EngineType::WindowsDataPdf => match crate::engine::win_pdf::WinPdfEngine::new() {
+                Ok(engine) => Ok(Box::new(engine)),
+                Err(e) => Err(e),
+            },
+            EngineType::WebView2 => match crate::engine::webview::WebView2Engine::new() {
+                Ok(engine) => Ok(Box::new(engine)),
+                Err(e) => Err(e),
+            },
         };
 
         if let Ok(mut engine) = engine_result {
-            // 注意：因为我们要调用 open(&mut self)，我们需要解包 Arc 或者直接在闭包里操作。
-            // 之前的实现可能有误，这里应当确保我们拿到的是独占所有权或在同步环境下处理。
-            // 由于 PdfEngine Trait 定义为 open(&mut self)，我们这里暂时直接获取 mut。
-            if let Some(engine_mut) = Arc::get_mut(&mut engine) {
-                if engine_mut.open(&path).is_ok() {
-                    self.current_doc = Some(engine);
-                    self.current_path = Some(path);
-                    self.current_page = 0;
-                    self.texture_cache.lock().unwrap().clear();
-                    self.pending_requests.clear();
-                }
-            } else {
-                // 如果 Arc 无法获取 mut (说明有其他地方持有)，则尝试重新创建一个
-                // 简化起见，这里直接使用刚刚初始化的 engine (假设只有一个持有者)
-                // 实际重写中通常在 open 前不进行 Arc 包装更为稳妥
+            if engine.open(&path).is_ok() {
+                let boxed: Box<dyn PdfEngine> = engine;
+                let arc: Arc<dyn PdfEngine> = Arc::from(boxed);
+                self.current_doc = Some(arc);
+                self.current_path = Some(path);
+                self.current_page = 0;
+                self.texture_cache.lock().unwrap().clear();
+                self.pending_requests.clear();
             }
         }
     }

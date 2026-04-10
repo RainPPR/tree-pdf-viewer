@@ -20,15 +20,19 @@ impl WinPdfEngine {
 impl PdfEngine for WinPdfEngine {
     fn open(&mut self, path: &Path) -> Result<()> {
         let abs_path = std::fs::canonicalize(path)?;
-        let path_str = abs_path.to_string_lossy();
+        let path_str = abs_path.to_string_lossy().to_string();
 
-        // WinRT 的 PdfDocument::LoadFromFileAsync 需要异步环境，
-        // 这里为了同步 Trait 接口，使用 block_on 或简单的同步包装。
-        // 由于 windows-rs 的 async 处理稍显复杂，这里使用 StorageFile 先加载。
-        let file =
-            StorageFile::GetFileFromPathAsync(&windows::core::HSTRING::from(path_str.as_ref()))?
-                .get()?;
-        let doc = PdfDocument::LoadFromFileAsync(&file)?.get()?;
+        let hpath = windows::core::HSTRING::from(&path_str);
+
+        let file = StorageFile::GetFileFromPathAsync(&hpath)
+            .map_err(|e| anyhow!("获取文件失败: {:?}", e))?
+            .get()
+            .map_err(|e| anyhow!("等待文件加载失败: {:?}", e))?;
+
+        let doc = PdfDocument::LoadFromFileAsync(&file)
+            .map_err(|e| anyhow!("加载PDF失败: {:?}", e))?
+            .get()
+            .map_err(|e| anyhow!("等待PDF加载失败: {:?}", e))?;
 
         self.document = Some(doc);
         Ok(())
@@ -39,34 +43,54 @@ impl PdfEngine for WinPdfEngine {
             .document
             .as_ref()
             .ok_or_else(|| anyhow!("文档未打开"))?;
-        let page = doc.GetPage(page_index as u32)?;
+        let page = doc
+            .GetPage(page_index as u32)
+            .map_err(|e| anyhow!("获取页面失败: {:?}", e))?;
 
-        let stream = InMemoryRandomAccessStream::new()?;
-        let options = PdfPageRenderOptions::new()?;
+        let stream =
+            InMemoryRandomAccessStream::new().map_err(|e| anyhow!("创建流失败: {:?}", e))?;
+        let options =
+            PdfPageRenderOptions::new().map_err(|e| anyhow!("创建渲染选项失败: {:?}", e))?;
 
-        // 设置渲染尺寸
-        let size = page.Size()?;
-        options.SetDestinationWidth((size.Width * zoom * 1.33) as u32)?;
-        options.SetDestinationHeight((size.Height * zoom * 1.33) as u32)?;
+        let size = page
+            .Size()
+            .map_err(|e| anyhow!("获取页面尺寸失败: {:?}", e))?;
 
-        page.RenderToStreamAsync(&stream)?.get()?;
+        options
+            .SetDestinationWidth((size.Width * zoom) as u32)
+            .map_err(|e| anyhow!("设置宽度失败: {:?}", e))?;
+        options
+            .SetDestinationHeight((size.Height * zoom) as u32)
+            .map_err(|e| anyhow!("设置高度失败: {:?}", e))?;
 
-        // 从流中读取数据
-        let size_u64 = stream.Size()?;
+        page.RenderToStreamAsync(&stream)
+            .map_err(|e| anyhow!("渲染失败: {:?}", e))?
+            .get()
+            .map_err(|e| anyhow!("等待渲染完成失败: {:?}", e))?;
+
+        let size_u64 = stream
+            .Size()
+            .map_err(|e| anyhow!("获取流大小失败: {:?}", e))?;
         let mut buffer = vec![0u8; size_u64 as usize];
-        let reader = windows::Storage::Streams::DataReader::CreateDataReader(&stream)?;
-        reader.LoadAsync(size_u64 as u32)?.get()?;
-        reader.ReadBytes(&mut buffer)?;
 
-        // 转换图像数据 (Windows.Data.Pdf 渲染出的是 BMP/PNG 编码的数据)
-        // 使用 image crate 解码
-        let img = image::load_from_memory(&buffer)?;
+        let reader = windows::Storage::Streams::DataReader::CreateDataReader(&stream)
+            .map_err(|e| anyhow!("创建数据读取器失败: {:?}", e))?;
+        reader
+            .LoadAsync(size_u64 as u32)
+            .map_err(|e| anyhow!("加载数据失败: {:?}", e))?
+            .get()
+            .map_err(|e| anyhow!("等待数据加载失败: {:?}", e))?;
+        reader
+            .ReadBytes(&mut buffer)
+            .map_err(|e| anyhow!("读取数据失败: {:?}", e))?;
+
+        let img = image::load_from_memory(&buffer).map_err(|e| anyhow!("解码图像失败: {:?}", e))?;
         let rgba = img.to_rgba8();
         let (w, h) = rgba.dimensions();
 
         Ok(ColorImage::from_rgba_unmultiplied(
             [w as usize, h as usize],
-            &rgba.as_raw(),
+            rgba.as_raw(),
         ))
     }
 
@@ -78,7 +102,6 @@ impl PdfEngine for WinPdfEngine {
     }
 
     fn get_toc(&self) -> Vec<TocItem> {
-        // Windows.Data.Pdf 对目录的支持比较有限
         vec![]
     }
 }

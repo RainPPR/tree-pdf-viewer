@@ -45,8 +45,8 @@ impl PdfEngine for PdfiumEngine {
         let height_pt = page.height().value;
 
         let render_config = PdfRenderConfig::new()
-            .set_target_width((width_pt * 1.33 * zoom) as i32)
-            .set_target_height((height_pt * 1.33 * zoom) as i32);
+            .set_target_width((width_pt * zoom) as i32)
+            .set_target_height((height_pt * zoom) as i32);
 
         let bitmap = page.render_with_config(&render_config)?;
         let width = bitmap.width() as usize;

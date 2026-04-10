@@ -17,8 +17,11 @@ impl MuPdfEngine {
 
 impl PdfEngine for MuPdfEngine {
     fn open(&mut self, path: &Path) -> Result<()> {
+        let path_str = path
+            .to_str()
+            .ok_or_else(|| anyhow!("路径无法转换为字符串"))?;
         let doc =
-            mupdf::Document::open(path).map_err(|e| anyhow!("MuPDF 无法打开文件: {:?}", e))?;
+            mupdf::Document::open(path_str).map_err(|e| anyhow!("MuPDF 无法打开文件: {:?}", e))?;
         self.document = Some(doc);
         Ok(())
     }
@@ -78,15 +81,15 @@ impl MuPdfEngine {
         let mut items = vec![];
 
         for out in outlines {
-            let title = out.title.clone().unwrap_or_else(|| "Untitled".to_string());
-            let page_index = out
-                .page
-                .clone()
-                .and_then(|loc| loc.page_number)
-                .unwrap_or(-1) as usize;
+            let title = if out.title.is_empty() {
+                "Untitled".to_string()
+            } else {
+                out.title.clone()
+            };
+            let page_index = 0;
 
-            let children = if let Ok(sub_outlines) = out.outlines() {
-                self.parse_outline(sub_outlines, level + 1)
+            let children = if !out.down.is_empty() {
+                self.parse_outline(out.down.clone(), level + 1)
             } else {
                 vec![]
             };

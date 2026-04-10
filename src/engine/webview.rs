@@ -1,5 +1,5 @@
 use super::{PdfEngine, TocItem};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use egui::ColorImage;
 use std::path::Path;
 
@@ -19,21 +19,29 @@ impl WebView2Engine {
 impl PdfEngine for WebView2Engine {
     fn open(&mut self, path: &Path) -> Result<()> {
         self.current_path = Some(path.to_string_lossy().into());
-        // WebView2 的初始化和文档加载通常是异步的
         Ok(())
     }
 
     fn render_page(&self, _page_index: usize, _zoom: f32) -> Result<ColorImage> {
-        // 对于 WebView2，我们通常不将其渲染结果导回到 CPU 位图
-        // 而是直接在 UI 上覆盖一个浏览器窗口。
-        // 为了兼容 Trait 接口，返回一个特定的提示占位图。
-        Err(anyhow!(
-            "WebView2 引擎目前通过原生窗口覆盖层直接显示，不支持 render_page 接口。"
-        ))
+        let width = 600;
+        let height = 800;
+        let mut pixels = vec![0u8; width * height * 4];
+
+        for y in 0..height {
+            for x in 0..width {
+                let idx = (y * width + x) * 4;
+                pixels[idx] = 45;
+                pixels[idx + 1] = 45;
+                pixels[idx + 2] = 50;
+                pixels[idx + 3] = 255;
+            }
+        }
+
+        Ok(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
     }
 
     fn page_count(&self) -> usize {
-        0 // WebView2 中难以同步获取
+        1
     }
 
     fn get_toc(&self) -> Vec<TocItem> {
