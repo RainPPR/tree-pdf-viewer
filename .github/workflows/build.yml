@@ -14,34 +14,39 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [default, mupdf]
+        include:
+          - feature: default
+            args: ""
+          - feature: mupdf
+            args: "--features mupdf"
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-      - name: Setup MSVC (Required for C++ deps like MuPDF)
+      - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install LLVM (MuPDF only)
         if: matrix.feature == 'mupdf'
-        run: |
-          choco install llvm
-          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $GITHUB_ENV
-          echo "C:\Program Files\LLVM\bin" >> $GITHUB_PATH
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Install LLVM
+        run: choco install llvm -y
+        if: matrix.feature == 'mupdf'
+
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Build
-        run: |
-          if ("${{ matrix.feature }}" -eq "mupdf") {
-            cargo build --release --features mupdf
-          } else {
-            cargo build --release
-          }
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cargo build --release ${{ matrix.args }}
+
+      - name: sccache stats
+        run: sccache --show-stats
 
       - name: Prepare Artifact
         run: |
