@@ -36,6 +36,9 @@ jobs:
         run: choco install llvm -y
         if: matrix.feature == 'mupdf'
 
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
 

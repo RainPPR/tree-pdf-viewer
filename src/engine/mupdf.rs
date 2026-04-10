@@ -45,10 +45,10 @@ impl PdfEngine for MuPdfEngine {
         let samples = pixmap.samples();
 
         let mut rgba = Vec::with_capacity(width * height * 4);
-        for i in 0..(width * height) {
-            rgba.push(samples[i * 3]);
-            rgba.push(samples[i * 3 + 1]);
-            rgba.push(samples[i * 3 + 2]);
+        for chunk in samples.chunks(3) {
+            rgba.push(chunk[0]);
+            rgba.push(chunk[1]);
+            rgba.push(chunk[2]);
             rgba.push(255);
         }
 
@@ -63,48 +63,57 @@ impl PdfEngine for MuPdfEngine {
     }
 
     fn get_toc(&self) -> Vec<TocItem> {
-        let doc = if let Some(ref d) = self.document {
-            d
-        } else {
-            return vec![];
+        let doc = match &self.document {
+            Some(d) => d,
+            None => return vec![],
         };
 
-        match doc.outlines() {
-            Ok(outlines) => self.parse_outline(outlines, 0),
-            Err(_) => vec![],
-        }
-    }
-}
+        let outline = match doc.outline() {
+            Some(o) => o,
+            None => return vec![],
+        };
 
-impl MuPdfEngine {
-    fn parse_outline(&self, outlines: Vec<mupdf::Outline>, level: usize) -> Vec<TocItem> {
         let mut items = vec![];
-
-        for out in outlines {
-            let title = if out.title.is_empty() {
-                "Untitled".to_string()
-            } else {
-                out.title.clone()
-            };
-            let page_index = 0;
-
-            let children = if !out.down.is_empty() {
-                self.parse_outline(out.down.clone(), level + 1)
-            } else {
-                vec![]
-            };
-
-            items.push(TocItem {
-                title,
-                page_index,
-                children,
-                level,
-            });
-        }
-
+        self.parse_outline(&outline, 0, &mut items);
         items
     }
 }
 
-unsafe impl Send for MuPdfEngine {}
-unsafe impl Sync for MuPdfEngine {}
+impl MuPdfEngine {
+    fn resolve_page_index(&self, dest: &Option<mupdf::LinkDestination>) -> usize {
+        let dest = match dest {
+            Some(d) => d,
+            None => return 0,
+        };
+        match self
+            .document
+            .as_ref()
+            .and_then(|d| d.resolve_link(dest).ok())
+        {
+            Some(loc) => loc.page as usize,
+            None => 0,
+        }
+    }
+
+    fn parse_outline(&self, outline: &mupdf::Outline, level: usize, items: &mut Vec<TocItem>) {
+        let title = if outline.title.is_empty() {
+            "Untitled".to_string()
+        } else {
+            outline.title.clone()
+        };
+        let page_index = self.resolve_page_index(&outline.dest);
+
+        items.push(TocItem {
+            title,
+            page_index,
+            children: vec![],
+            level,
+        });
+
+        if !outline.down.is_empty() {
+            for child in &outline.down {
+                self.parse_outline(child, level + 1, items);
+            }
+        }
+    }
+}
