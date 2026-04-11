@@ -180,7 +180,7 @@ body,
 .tree-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 4px 8px;
   cursor: default;
   font-size: 13px;
@@ -198,6 +198,10 @@ body,
   cursor: pointer;
 }
 
+.tree-folder.clickable {
+  cursor: pointer;
+}
+
 .tree-file {
   cursor: pointer;
 }
@@ -207,11 +211,43 @@ body,
   color: var(--accent);
 }
 
-.tree-icon {
-  font-size: 14px;
+/* Chevron arrow for folders */
+.tree-chevron {
   flex-shrink: 0;
-  width: 18px;
-  text-align: center;
+  color: #6c7086;
+  transition: transform 0.15s ease;
+  width: 14px;
+  height: 14px;
+}
+
+.tree-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* Icon containers */
+.tree-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.tree-icon svg {
+  display: block;
+}
+
+.tree-icon-folder svg {
+  color: #fab387;
+}
+
+.tree-icon-file svg {
+  color: #f38ba8;
+}
+
+.tree-file.active .tree-icon-file svg {
+  color: var(--accent);
 }
 
 .tree-name {

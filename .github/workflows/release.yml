@@ -1,16 +1,10 @@
-name: Build
+name: Release
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    tags:
+      - 'v*'
   workflow_dispatch:
-
-# Cancel redundant runs for the same branch/PR
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   CARGO_INCREMENTAL: 0
@@ -19,10 +13,20 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  build-windows:
+  release-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+
+      # Update package.json version from tag
+      - name: Update version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME -replace '^v', ''
+          $json = Get-Content package.json | ConvertFrom-Json
+          $json.version = $tag
+          $json | ConvertTo-Json -Depth 10 | Set-Content package.json
+          Write-Host "Version set to $tag"
 
       # --- Node.js + pnpm ---
       - name: Setup Node.js
@@ -70,21 +74,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Tree PDF Viewer ${{ github.ref_name }}'
+          releaseDraft: true
           args: ''
 
-      - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: tree-pdf-viewer-windows
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
-          retention-days: 14
-
-  build-ubuntu:
+  release-ubuntu:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      # Update package.json version from tag
+      - name: Update version
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          jq --arg v "$TAG" '.version = $v' package.json > package.tmp.json
+          mv package.tmp.json package.json
+          echo "Version set to $TAG"
 
       # --- System dependencies ---
       - name: Install system dependencies
@@ -148,13 +154,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Tree PDF Viewer ${{ github.ref_name }}'
+          releaseDraft: true
           args: ''
-
-      - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: tree-pdf-viewer-linux
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-          retention-days: 14
