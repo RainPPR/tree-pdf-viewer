@@ -118,19 +118,100 @@ body,
 .tab-bar {
   display: flex;
   align-items: flex-end;
-  height: var(--tab-bar-height);
+  min-height: var(--tab-bar-height);
   background: var(--tab-bg);
   border-bottom: 1px solid var(--border);
   padding: 0 6px;
   gap: 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
   flex-shrink: 0;
 }
 
-.tab-bar::-webkit-scrollbar {
-  display: none;
+/* Mode: scroll — horizontal scrolling, fixed-width tabs */
+.tab-bar--scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  height: var(--tab-bar-height);
+}
+
+.tab-bar--scroll::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tab-bar--scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-bar--scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.tab-bar--scroll .tab-item {
+  flex: 0 0 auto;
+}
+
+/* Mode: shrink — tabs compress when space is limited, then scroll */
+.tab-bar--shrink {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: var(--tab-bar-height);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.tab-bar--shrink::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tab-bar--shrink::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-bar--shrink::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.tab-bar--shrink .tab-item {
+  min-width: 60px;
+  max-width: 150px;
+  flex: 0 1 auto;
+}
+
+.tab-bar--shrink .tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mode: wrap — multi-line tab layout */
+.tab-bar--wrap {
+  flex-wrap: wrap;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(var(--tab-bar-height) * 3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  height: auto;
+}
+
+.tab-bar--wrap::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tab-bar--wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-bar--wrap::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.tab-bar--wrap .tab-item {
+  flex: 0 1 auto;
 }
 
 .tab-item {
@@ -150,7 +231,6 @@ body,
   border-bottom: none;
   transition: background 0.1s, color 0.1s;
   user-select: none;
-  flex-shrink: 0;
 }
 
 .tab-item:hover {
@@ -568,6 +648,29 @@ body,
 }
 
 .setting-row input[type='number']:focus {
+  border-color: var(--accent);
+}
+
+.setting-row select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tab-active-text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236c7086' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.setting-row select:focus {
   border-color: var(--accent);
 }
 

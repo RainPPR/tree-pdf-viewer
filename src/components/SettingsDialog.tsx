@@ -2,16 +2,24 @@ import { useState, useEffect, useRef } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { MIN_MEMORY_LIMIT_MB } from '../types';
+import type { TabDisplayMode } from '../types';
 
 interface SettingsDialogProps {
   onClose: () => void;
 }
+
+const DISPLAY_MODES: { value: TabDisplayMode; label: string; desc: string }[] = [
+  { value: 'scroll', label: 'Scroll', desc: 'Horizontal scroll when tabs overflow (Chrome/Edge style)' },
+  { value: 'shrink', label: 'Shrink', desc: 'Auto-compress tabs to fit width (VS Code style)' },
+  { value: 'wrap', label: 'Wrap', desc: 'Multi-line layout when tabs overflow (Firefox style)' },
+];
 
 export function SettingsDialog({ onClose }: SettingsDialogProps) {
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
   const [maxTabs, setMaxTabs] = useState(settings.maxTabs.toString());
   const [memoryLimitMB, setMemoryLimitMB] = useState(settings.memoryLimitMB.toString());
+  const [tabDisplayMode, setTabDisplayMode] = useState<TabDisplayMode>(settings.tabDisplayMode);
   const [warning, setWarning] = useState<string | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -28,13 +36,10 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
       return;
     }
 
-    if (newMemoryLimit < MIN_MEMORY_LIMIT_MB) {
-      setWarning(`Warning: Memory limit below ${MIN_MEMORY_LIMIT_MB} MB may cause issues`);
-    }
-
     updateSettings({
       maxTabs: newMaxTabs,
       memoryLimitMB: newMemoryLimit,
+      tabDisplayMode,
     });
     setWarning(null);
     onClose();
@@ -97,9 +102,24 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
               onChange={(e) => setMemoryLimitMB(e.target.value)}
             />
             <span className="setting-hint">
-              JS heap memory limit. Below {MIN_MEMORY_LIMIT_MB} MB may cause instability.
+              Process memory limit. Below {MIN_MEMORY_LIMIT_MB} MB may cause instability.
               When exceeded, oldest tabs will be auto-closed.
             </span>
+          </div>
+
+          <div className="setting-row">
+            <label htmlFor="tabDisplayMode">Tab Display Mode</label>
+            <select
+              id="tabDisplayMode"
+              value={tabDisplayMode}
+              onChange={(e) => setTabDisplayMode(e.target.value as TabDisplayMode)}
+            >
+              {DISPLAY_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label} — {mode.desc}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

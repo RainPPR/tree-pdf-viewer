@@ -6,11 +6,12 @@ export function TabBar() {
   const activeTabId = useAppStore((s) => s.activeTabId);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const closeTab = useAppStore((s) => s.closeTab);
+  const tabDisplayMode = useAppStore((s) => s.settings.tabDisplayMode);
 
   if (tabs.length === 0) return null;
 
   return (
-    <div className="tab-bar">
+    <div className={`tab-bar tab-bar--${tabDisplayMode}`}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         return (
@@ -18,10 +19,9 @@ export function TabBar() {
             key={tab.id}
             className={`tab-item ${isActive ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
+            title={tab.title}
           >
-            <span className="tab-title" title={tab.title}>
-              {tab.title}
-            </span>
+            <span className="tab-title">{tab.title}</span>
             <button
               className="tab-close"
               onClick={(e) => {
