@@ -58,7 +58,6 @@ function App() {
       {isResizing && <div className="resize-overlay" />}
 
       <Toolbar onOpenSettings={() => setShowSettings(true)} />
-      <TabBar />
 
       <div className="main-content">
         <div className="sidebar" style={{ width: sidebarWidth }}>
@@ -69,6 +68,7 @@ function App() {
           onMouseDown={handleMouseDown}
         />
         <div className="pdf-area">
+          <TabBar />
           <PdfViewer />
         </div>
       </div>

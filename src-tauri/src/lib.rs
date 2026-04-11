@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,12 +79,26 @@ fn scan_pdf_tree(root: String) -> Result<Option<TreeNode>, String> {
     Ok(scan_for_pdfs(path))
 }
 
+/// Returns the current process memory usage in MB (resident set size).
+#[tauri::command]
+fn get_process_memory() -> u64 {
+    let mut sys = System::new_all();
+    let pid = Pid::from(std::process::id() as usize);
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+    if let Some(process) = sys.process(pid) {
+        // memory() returns bytes
+        process.memory() / (1024 * 1024)
+    } else {
+        0
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![scan_pdf_tree])
+        .invoke_handler(tauri::generate_handler![scan_pdf_tree, get_process_memory])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

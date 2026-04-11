@@ -18,8 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # Update package.json version from tag
-      - name: Update version
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Update version from tag
         shell: pwsh
         run: |
           $tag = $env:GITHUB_REF_NAME -replace '^v', ''
@@ -28,35 +32,6 @@ jobs:
           $json | ConvertTo-Json -Depth 10 | Set-Content package.json
           Write-Host "Version set to $tag"
 
-      # --- Node.js + pnpm ---
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store path
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Cache pnpm store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      # --- Rust toolchain + cache ---
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -67,8 +42,7 @@ jobs:
           cache-on-failure: true
           shared-key: 'windows'
 
-      # --- Tauri build ---
-      - name: Build Tauri app
+      - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,22 +51,24 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Tree PDF Viewer ${{ github.ref_name }}'
           releaseDraft: true
-          args: ''
 
   release-ubuntu:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      # Update package.json version from tag
-      - name: Update version
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Update version from tag
         run: |
           TAG=${GITHUB_REF_NAME#v}
           jq --arg v "$TAG" '.version = $v' package.json > package.tmp.json
           mv package.tmp.json package.json
           echo "Version set to $TAG"
 
-      # --- System dependencies ---
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -109,34 +85,6 @@ jobs:
             lld \
             patchelf
 
-      # --- Node.js + pnpm ---
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store path
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      # --- Rust toolchain + cache ---
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -147,8 +95,7 @@ jobs:
           cache-on-failure: true
           shared-key: 'linux'
 
-      # --- Tauri build ---
-      - name: Build Tauri app
+      - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -157,4 +104,3 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Tree PDF Viewer ${{ github.ref_name }}'
           releaseDraft: true
-          args: ''

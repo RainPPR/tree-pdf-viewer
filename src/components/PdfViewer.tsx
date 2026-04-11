@@ -28,72 +28,72 @@ export function PdfViewer() {
   const closeTab = useAppStore((s) => s.closeTab);
   const monitorRef = useRef<number | null>(null);
 
-  // Memory monitoring
+  // Memory monitoring via Rust sysinfo
   useEffect(() => {
-    const checkMemory = () => {
-      const mem = (performance as any).memory;
-      if (!mem || !mem.usedJSHeapSize) {
-        // performance.memory not available - skip monitoring
-        return;
-      }
+    let cancelled = false;
 
-      const usedMB = mem.usedJSHeapSize / (1024 * 1024);
-      setMemoryUsage(Math.round(usedMB));
+    const checkMemory = async () => {
+      if (cancelled) return;
 
-      const limitMB = useAppStore.getState().settings.memoryLimitMB;
-      const ratio = usedMB / limitMB;
+      try {
+        const usedMB = await invoke<number>('get_process_memory');
+        if (cancelled) return;
+        setMemoryUsage(usedMB);
 
-      if (ratio >= 1.0) {
-        // Memory limit exceeded - start closing oldest inactive tabs
-        const state = useAppStore.getState();
-        const currentTabId = state.activeTabId;
-        const inactiveTabs = state.tabs.filter((t) => t.id !== currentTabId);
+        const limitMB = useAppStore.getState().settings.memoryLimitMB;
+        const ratio = usedMB / limitMB;
 
-        if (inactiveTabs.length > 0) {
-          // Close the oldest inactive tab
-          const oldest = inactiveTabs[0];
-          closeTab(oldest.id);
+        if (ratio >= 1.0) {
+          const state = useAppStore.getState();
+          const currentTabId = state.activeTabId;
+          const inactiveTabs = state.tabs.filter((t) => t.id !== currentTabId);
+
+          if (inactiveTabs.length > 0) {
+            const oldest = inactiveTabs[0];
+            closeTab(oldest.id);
+            setMemoryWarning(
+              `Memory limit reached (${usedMB}MB / ${limitMB}MB). Closed "${oldest.title}".`
+            );
+            setStatusMessage(
+              `Auto-closed tab: ${oldest.title} (memory limit exceeded)`
+            );
+          } else {
+            setMemoryWarning(
+              `CRITICAL: Memory limit exceeded (${usedMB}MB / ${limitMB}MB) and no tabs to close. Application may become unstable.`
+            );
+            setStatusMessage(
+              `FATAL: Memory limit exceeded and all tabs closed. Please restart the application.`
+            );
+            if (monitorRef.current) {
+              clearInterval(monitorRef.current);
+              monitorRef.current = null;
+            }
+          }
+        } else if (ratio >= 0.85) {
           setMemoryWarning(
-            `Memory limit reached (${Math.round(usedMB)}MB / ${limitMB}MB). Closed "${oldest.title}".`
-          );
-          setStatusMessage(
-            `Auto-closed tab: ${oldest.title} (memory limit exceeded)`
+            `Memory usage high: ${usedMB}MB / ${limitMB}MB (${Math.round(ratio * 100)}%)`
           );
         } else {
-          // No more tabs to close - fatal error
-          setMemoryWarning(
-            `CRITICAL: Memory limit exceeded (${Math.round(usedMB)}MB / ${limitMB}MB) and no tabs to close. Application may become unstable.`
-          );
-          setStatusMessage(
-            `FATAL: Memory limit exceeded and all tabs closed. Please restart the application.`
-          );
-          // Stop monitoring - we've done all we can
-          if (monitorRef.current) {
-            clearInterval(monitorRef.current);
-            monitorRef.current = null;
-          }
+          setMemoryWarning(null);
         }
-      } else if (ratio >= 0.85) {
-        setMemoryWarning(
-          `Memory usage high: ${Math.round(usedMB)}MB / ${limitMB}MB (${Math.round(ratio * 100)}%)`
-        );
-      } else {
-        setMemoryWarning(null);
+      } catch {
+        // Ignore errors - sysinfo may not be available on all platforms
       }
     };
 
-    // Check every 5 seconds
-    monitorRef.current = window.setInterval(checkMemory, 5000);
+    // Check every 3 seconds
+    monitorRef.current = window.setInterval(checkMemory, 3000);
     // Also check immediately
     checkMemory();
 
     return () => {
+      cancelled = true;
       if (monitorRef.current) {
         clearInterval(monitorRef.current);
         monitorRef.current = null;
       }
     };
-  }, []); // Run once on mount, uses getState() for current data
+  }, []);
 
   if (tabs.length === 0) {
     return (

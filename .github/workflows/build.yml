@@ -7,7 +7,6 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
-# Cancel redundant runs for the same branch/PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -24,35 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # --- Node.js + pnpm ---
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store path
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Cache pnpm store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      # --- Rust toolchain + cache ---
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -63,14 +38,12 @@ jobs:
           cache-on-failure: true
           shared-key: 'windows'
 
-      # --- Tauri build ---
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
-          args: ''
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v7
@@ -86,7 +59,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # --- System dependencies ---
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -103,34 +80,6 @@ jobs:
             lld \
             patchelf
 
-      # --- Node.js + pnpm ---
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store path
-        id: pnpm-cache
-        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm store
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      # --- Rust toolchain + cache ---
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -141,14 +90,12 @@ jobs:
           cache-on-failure: true
           shared-key: 'linux'
 
-      # --- Tauri build ---
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
-          args: ''
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v7

@@ -16,9 +16,7 @@
         "title": "Tree PDF Viewer",
         "width": 1200,
         "height": 800,
-        "resizable": true,
-        "transparent": true,
-        "decorations": false
+        "resizable": true
       }
     ],
     "security": {
