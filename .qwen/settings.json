@@ -5,7 +5,11 @@
       "Bash(findstr *)",
       "WebFetch(*)",
       "Bash(rmdir *)",
-      "Bash(del *)"
+      "Bash(del *)",
+      "Bash(node *)",
+      "Bash(pnpm *)",
+      "Bash(mkdir *)",
+      "Bash(cargo build *)"
     ]
   },
   "$version": 3
