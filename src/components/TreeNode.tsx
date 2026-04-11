@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, Folder, FolderOpen, FileText } from 'lucide-react';
 import { TreeNode } from '../types';
 import { useAppStore } from '../store/appStore';
+import { handleOpenPdf } from '../commands';
 
 interface TreeNodeProps {
   node: TreeNode;
@@ -10,8 +11,7 @@ interface TreeNodeProps {
 
 export function TreeNodeComponent({ node, depth }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(false);
-  const currentPdf = useAppStore((s) => s.currentPdf);
-  const setCurrentPdf = useAppStore((s) => s.setCurrentPdf);
+  const tabs = useAppStore((s) => s.tabs);
 
   const paddingLeft = depth * 16 + 8;
 
@@ -50,12 +50,12 @@ export function TreeNodeComponent({ node, depth }: TreeNodeProps) {
   }
 
   // PDF file
-  const isActive = currentPdf === node.path;
+  const isActive = tabs.some((t) => t.pdfPath === node.path);
   return (
     <div
       className={`tree-item tree-file ${isActive ? 'active' : ''}`}
       style={{ paddingLeft: paddingLeft + 14 }}
-      onClick={() => setCurrentPdf(node.path)}
+      onClick={() => handleOpenPdf(node.path)}
       title={node.path}
     >
       <span className="tree-icon tree-icon-file">

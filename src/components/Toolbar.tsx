@@ -1,15 +1,18 @@
-import { useAppStore } from '../store/appStore';
+import { FolderOpen, Settings } from 'lucide-react';
 import { handleOpenFolder } from '../commands';
+import { useAppStore } from '../store/appStore';
 
-export function Toolbar() {
+interface ToolbarProps {
+  onOpenSettings: () => void;
+}
+
+export function Toolbar({ onOpenSettings }: ToolbarProps) {
   const rootPath = useAppStore((s) => s.rootPath);
 
   return (
     <div className="toolbar">
       <button className="toolbar-btn" onClick={handleOpenFolder} title="Open Folder">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
+        <FolderOpen size={16} strokeWidth={2} />
         Open Folder
       </button>
       {rootPath && (
@@ -17,6 +20,10 @@ export function Toolbar() {
           {rootPath}
         </span>
       )}
+      <div className="toolbar-spacer" />
+      <button className="toolbar-btn toolbar-icon-btn" onClick={onOpenSettings} title="Settings">
+        <Settings size={16} strokeWidth={2} />
+      </button>
     </div>
   );
 }

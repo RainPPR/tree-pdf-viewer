@@ -21,7 +21,6 @@ export async function handleOpenFolder() {
   try {
     const result = await invoke<TreeNode | null>('scan_pdf_tree', { root: selected });
     if (result) {
-      // The root node is the selected folder itself; use its children as the tree
       store.setTreeData(result.children ? result.children : [result]);
       store.setStatusMessage(
         `Loaded: ${selected} (${countPdfs(result)} PDF file(s) found)`
@@ -34,6 +33,11 @@ export async function handleOpenFolder() {
     store.setTreeData([]);
     store.setStatusMessage(`Error: ${err}`);
   }
+}
+
+export function handleOpenPdf(pdfPath: string) {
+  const title = pdfPath.split(/[\\/]/).pop() || pdfPath;
+  useAppStore.getState().addTab(pdfPath, title);
 }
 
 function countPdfs(node: TreeNode): number {

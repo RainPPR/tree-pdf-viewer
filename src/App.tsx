@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { TreeView } from './components/TreeView';
 import { PdfViewer } from './components/PdfViewer';
 import { StatusBar } from './components/StatusBar';
+import { TabBar } from './components/TabBar';
+import { SettingsDialog } from './components/SettingsDialog';
 import { useAppStore } from './store/appStore';
-import { useState, useCallback, useRef } from 'react';
 import './App.css';
 
 const MIN_SIDEBAR_WIDTH = 180;
@@ -14,6 +15,7 @@ function App() {
   const sidebarWidth = useAppStore((s) => s.sidebarWidth);
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth);
   const [isResizing, setIsResizing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
@@ -53,10 +55,11 @@ function App() {
 
   return (
     <div className="app-container">
-      {isResizing && (
-        <div className="resize-overlay" />
-      )}
-      <Toolbar />
+      {isResizing && <div className="resize-overlay" />}
+
+      <Toolbar onOpenSettings={() => setShowSettings(true)} />
+      <TabBar />
+
       <div className="main-content">
         <div className="sidebar" style={{ width: sidebarWidth }}>
           <TreeView />
@@ -69,7 +72,12 @@ function App() {
           <PdfViewer />
         </div>
       </div>
+
       <StatusBar />
+
+      {showSettings && (
+        <SettingsDialog onClose={() => setShowSettings(false)} />
+      )}
     </div>
   );
 }
