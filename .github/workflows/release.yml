@@ -37,6 +37,7 @@ jobs:
           $json = Get-Content package.json | ConvertFrom-Json
           $json.version = $tag
           $json | ConvertTo-Json -Depth 10 | Set-Content package.json
+          (Get-Content src-tauri/Cargo.toml) -replace 'version = ".*"', "version = `"$tag`"" | Set-Content src-tauri/Cargo.toml
           Write-Host "Version set to $tag"
 
       - name: Install Rust stable
@@ -78,6 +79,7 @@ jobs:
           TAG=${GITHUB_REF_NAME#v}
           jq --arg v "$TAG" '.version = $v' package.json > package.tmp.json
           mv package.tmp.json package.json
+          sed -i "s/^version = \".*\"/version = \"$TAG\"/" src-tauri/Cargo.toml
           echo "Version set to $TAG"
 
       - name: Install system dependencies
