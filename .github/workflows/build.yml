@@ -1,4 +1,4 @@
-name: Multi-Feature Build
+name: Build
 
 on:
   push:
@@ -9,17 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.feature }})
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - feature: default
-            args: ""
-          - feature: mupdf
-            args: "--features mupdf"
-
     steps:
       - uses: actions/checkout@v6
 
@@ -30,11 +20,9 @@ jobs:
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
-        if: matrix.feature == 'mupdf'
 
       - name: Install LLVM
         run: choco install llvm -y
-        if: matrix.feature == 'mupdf'
 
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
@@ -46,7 +34,7 @@ jobs:
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: cargo build --release ${{ matrix.args }}
+        run: cargo build --release
 
       - name: sccache stats
         run: sccache --show-stats
@@ -54,12 +42,11 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir dist
-          Get-ChildItem -Path target/release -Filter pdfium.dll -Recurse | Copy-Item -Destination dist/
           Get-ChildItem -Path target/release -Filter tree-pdf-viewer.exe -Recurse | Copy-Item -Destination dist/
         shell: pwsh
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tree-pdf-viewer-${{ matrix.feature }}
+          name: tree-pdf-viewer
           path: dist/
