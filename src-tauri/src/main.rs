@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    temp_tauri_lib::run()
+    tree_pdf_viewer_lib::run()
 }
