@@ -22,6 +22,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
+          cache: 'npm'
+          
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Update version from tag
         shell: pwsh
@@ -61,6 +65,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
+          cache: 'npm'
+          
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Update version from tag
         run: |
