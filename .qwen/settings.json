@@ -9,7 +9,9 @@
       "Bash(node *)",
       "Bash(pnpm *)",
       "Bash(mkdir *)",
-      "Bash(cargo build *)"
+      "Bash(cargo *)",
+      "Bash(npm *)",
+      "Bash(rtk *)"
     ]
   },
   "$version": 3
